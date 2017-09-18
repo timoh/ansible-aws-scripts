@@ -1,0 +1,3 @@
+aws_inventory
+*.retry
+vars/external_vars.yml

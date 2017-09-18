@@ -1,0 +1,43 @@
+- name: Get Airflow dags to scheduler
+  hosts: airflow_scheduler
+  gather_facts: false
+  connection: ssh
+  vars_files:
+  - ./vars/external_vars.yml
+  vars:
+    - airflow_user_name: ubuntu
+    - airflow_user_group: ubuntu
+  tasks:
+
+  - name: Ensure airflow dags folder exists
+    file:
+      path: "/home/ubuntu/airflow/dags"
+      owner: '{{ airflow_user_name }}'
+      group: '{{ airflow_user_group }}'
+      state: directory
+      recurse: true
+      mode: 0765
+
+  - name: Get Airflow dags from Github
+    git:
+      repo: '{{ dag_repo }}'
+      dest: /home/ubuntu/airflow/dags/airflow_dags
+      clone: yes
+      update: yes
+      force: yes
+
+- name: Install required pip packages
+  hosts: airflow_scheduler
+  gather_facts: false
+  become: true
+  become_user: root
+  connection: ssh
+  vars_files:
+  - ./vars/external_vars.yml
+  vars:
+    - airflow_user_name: ubuntu
+    - airflow_user_group: ubuntu
+  tasks:
+
+    - name: Install the packages specified in requirements.txt
+      pip: requirements=/home/ubuntu/airflow/dags/airflow_dags/requirements.txt

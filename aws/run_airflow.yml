@@ -1,0 +1,14 @@
+- name: Run Airflow Scheduler and Worker
+  hosts: airflow_scheduler
+  gather_facts: false
+  connection: ssh
+  tasks:
+
+    - name: Airflow scheduler
+      command: airflow scheduler -D
+
+    - name: Airflow worker
+      command: airflow worker -D
+
+    - name: Airflow webserver
+      command: airflow webserver -p 8080 -D

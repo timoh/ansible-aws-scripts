@@ -1,0 +1,19 @@
+- name: Stop scheduler instance
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars_files:
+  - ./vars/external_vars.yml
+  vars:
+    instance_ids:
+      - '{{ airflow_scheduler_instance_id }}'
+    region: '{{ airflow_scheduler_aws_region }}'
+  tasks:
+    - name: Stop the instance
+      ec2:
+        instance_ids: '{{ instance_ids }}'
+        region: '{{ region }}'
+        state: stopped
+        wait: True
+        vpc_subnet_id: '{{ subnet_id }}'
+        assign_public_ip: yes

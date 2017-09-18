@@ -1,0 +1,7 @@
+dag_repo: git@github.com:[your_organization]/airflow_dags.git
+airflow_db_password: [your_password]
+airflow_scheduler_instance_id: i-[asdasdasd]
+subnet_id: subnet-[asdasdasd]
+airflow_scheduler_aws_region: us-east-1
+pem_file_name: [pem_file_name].pem
+fernet_key: [a_secret_token]

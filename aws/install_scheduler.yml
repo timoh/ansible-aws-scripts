@@ -1,0 +1,168 @@
+- name: Install Postgres and Airflow
+  hosts: airflow_scheduler
+  become: true
+  become_user: root
+  gather_facts: false
+  connection: ssh
+  vars_files:
+  - ./vars/external_vars.yml
+  vars:
+    - airflow_pg_db: airflow_pg_db
+    - airflow_pguser: airflow_pguser
+    - airflow_dbpassword: '{{ airflow_db_password }}'
+    - airflow_user_name: ubuntu
+    - airflow_user_group: ubuntu
+    - celery_broker_url: redis://localhost:6379/0
+    - celery_result_backend: redis://localhost:6379/0
+  tasks:
+
+    - name: Install with apt postgres and related libs
+      apt: name={{item}} state=present update_cache=yes
+      with_items:
+        - postgresql
+        - postgresql-contrib
+        - libpq-dev
+        - python-psycopg2
+
+    - name: Install with apt redis-server
+      apt: name={{item}} state=present update_cache=yes
+      with_items:
+        - redis-server
+
+    - name: ensure redis service is restarted
+      service: name=redis-server state=restarted
+
+    - name: Install present Airflow
+      pip:
+        name: airflow
+        state: present
+      become: True
+
+    - name: Install with pip present Postgres, Redis and Celery
+      pip:
+        name: postgres, redis, celery, celery[redis]
+        state: present
+      become: True
+
+    - name: Install present Airflow additional packages for s3, postgres, celery, crypto and password
+      pip:
+        name: "airflow[s3] airflow[postgres] airflow[celery] airflow[crypto] airflow[password]"
+        state: present
+      become: True
+
+    - name: SED locales
+      command: sed -i '/^#.* en_US.* /s/^#//' /etc/locale.gen
+
+    - name: Generate locales
+      command: locale-gen "en_US.UTF-8"
+
+    # - name: Create airflow user
+    #   user:
+    #     name: '{{ airflow_user_name }}'
+    #     createhome: false
+    #     system: true
+
+    - name: Create airflow directory structure
+      file:
+        path: "/home/ubuntu/airflow"
+        owner: '{{ airflow_user_name }}'
+        group: '{{ airflow_user_group }}'
+        state: directory
+        recurse: true
+        mode: 0765
+
+    - name: Deploy Airflow.cfg
+      become: True
+      become_user: "{{ airflow_user_name }}"
+      template:
+        src: ./templates/airflow.cfg.j2
+        dest: /home/ubuntu/airflow/airflow.cfg
+        owner: '{{ airflow_user_name }}'
+        group: '{{ airflow_user_group }}'
+        mode: 0664
+
+    - name: Remove previously downloaded template files
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "/home/ubuntu/airflow-scheduler.service.j2"
+        - "/home/ubuntu/airflow-webserver.service.j2"
+        - "/home/ubuntu/airflow-worker.service.j2"
+
+    # - name: download airflow-scheduler.service.j2
+    #   get_url:
+    #     url: https://raw.githubusercontent.com/CreditCardsCom/ansible-airflow/master/templates/etc/systemd/system/airflow-scheduler.service.j2
+    #     dest: /home/ubuntu/airflow-scheduler.service.j2
+    #
+    # - name: download airflow-webserver.service.j2
+    #   get_url:
+    #     url: https://raw.githubusercontent.com/CreditCardsCom/ansible-airflow/master/templates/etc/systemd/system/airflow-webserver.service.j2
+    #     dest: /home/ubuntu/airflow-webserver.service.j2
+    #
+    # - name: download airflow-worker.service.j2
+    #   get_url:
+    #     url: https://raw.githubusercontent.com/CreditCardsCom/ansible-airflow/master/templates/etc/systemd/system/airflow-worker.service.j2
+    #     dest: /home/ubuntu/airflow-worker.service.j2
+    #
+    # - name: Install scheduler
+    #   template:
+    #     src: /home/ubuntu/airflow-scheduler.service.j2
+    #     dest: /etc/systemd/system/airflow-scheduler.service
+    #
+    # - name: Install webserver
+    #   template:
+    #     src: /home/ubuntu/airflow-worker.service.j2
+    #     dest: /etc/systemd/system/airflow-worker.service
+    #
+    # - name: Install worker
+    #   template:
+    #     src: /home/ubuntu/airflow-webserver.service.j2
+    #     dest: /etc/systemd/system/airflow-webserver.service
+
+- name: Setup Postgres for airflow_pguser
+  hosts: airflow_scheduler
+  connection: ssh
+  become: yes
+  become_user: postgres
+  gather_facts: no
+  vars_files:
+  - ./vars/external_vars.yml
+  vars:
+    - airflow_pg_db: airflow_pg_db
+    - airflow_pguser: airflow_pguser
+    - airflow_dbpassword: '{{ airflow_db_password }}'
+
+  tasks:
+  - name: ensure database is created
+    postgresql_db: name={{ airflow_pg_db }}
+
+  - name: ensure user has access to database
+    postgresql_user: db={{ airflow_pg_db }} name={{ airflow_pguser }} password={{ airflow_dbpassword }} priv=ALL
+
+  - name: ensure user does not have unnecessary privilege
+    postgresql_user: name={{ airflow_pguser }} role_attr_flags=NOSUPERUSER,NOCREATEDB
+
+  - name: ensure no other user can access the database
+    postgresql_privs: db={{ airflow_pg_db }} role=PUBLIC type=database priv=ALL state=absent
+
+
+- name: Initialize Airflow
+  hosts: airflow_scheduler
+  become: True
+  become_user: root
+  gather_facts: false
+  connection: ssh
+  tasks:
+
+    - name: Airflow initdb
+      command: airflow initdb
+
+- name: List Airflow Dags
+  hosts: airflow_scheduler
+  gather_facts: false
+  connection: ssh
+  tasks:
+
+    - name: Run airflow list_dags also to generate airflow.cfg
+      command: airflow list_dags

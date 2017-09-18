@@ -1,0 +1,8 @@
+- hosts: airflow_scheduler
+  tasks:
+  - name: Update repositories cache and install "python" package
+    apt: name={{item}} state=present update_cache=yes
+    with_items:
+      - python3.6
+      - airflow
+      - "airflow[s3, postgres, celery, crypto, password]"

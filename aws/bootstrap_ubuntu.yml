@@ -1,0 +1,30 @@
+- name: Bootstrap AWS Ubuntu to be workable with Ansible
+  hosts: airflow_scheduler
+  become: true
+  become_user: root
+  gather_facts: false
+  connection: ssh
+  tasks:
+    - name: Install Python 2 to be able to run Ansible on the target machine
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+    - name: Clean and update apt-get
+      shell: apt-get clean && apt-get update
+    - name: Update all apt packages to the latest version
+      apt:
+        update_cache: yes
+        upgrade: dist
+    - name: Install python, python3, pip and miscellaneous additional tools
+      apt: name={{item}} state=latest update_cache=yes
+      with_items:
+        - python
+        - python3
+        - python-pip
+        - python-dev
+        - build-essential
+        - make
+        - tcl
+        - xclip
+    - name: Upgrade pip to latest version
+      pip:
+        name: pip
+        state: latest
