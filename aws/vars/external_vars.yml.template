@@ -5,3 +5,6 @@ subnet_id: subnet-[asdasdasd]
 airflow_scheduler_aws_region: us-east-1
 pem_file_name: [pem_file_name].pem
 fernet_key: [a_secret_token]
+airflow_web_user_id: [username]
+airflow_web_user_password: [password]
+airflow_web_user_email: [your_email]

@@ -23,6 +23,7 @@
         - postgresql-contrib
         - libpq-dev
         - python-psycopg2
+        - systemd
 
     - name: Install with apt redis-server
       apt: name={{item}} state=present update_cache=yes
@@ -40,7 +41,7 @@
 
     - name: Install with pip present Postgres, Redis and Celery
       pip:
-        name: postgres, redis, celery, celery[redis]
+        name: postgres, redis, celery, celery[redis], flask_bcrypt
         state: present
       become: True
 
@@ -81,14 +82,85 @@
         group: '{{ airflow_user_group }}'
         mode: 0664
 
-    - name: Remove previously downloaded template files
+    - name: Create /etc/sysconfig directory structure
       file:
-        path: "{{ item }}"
-        state: absent
-      with_items:
-        - "/home/ubuntu/airflow-scheduler.service.j2"
-        - "/home/ubuntu/airflow-webserver.service.j2"
-        - "/home/ubuntu/airflow-worker.service.j2"
+        path: "/etc/sysconfig/"
+        owner: root
+        group: root
+        state: directory
+        recurse: true
+        mode: 0755
+
+    - name: Deploy /etc/sysconfig/airflow
+      become: True
+      become_user: root
+      template:
+        src: ./templates/airflow-sysconfig.j2
+        dest: /etc/sysconfig/airflow
+        owner: root
+        group: '{{ airflow_user_group }}'
+        mode: 0664
+
+    # - name: Remove previously downloaded template files
+    #   file:
+    #     path: "{{ item }}"
+    #     state: absent
+    #   with_items:
+    #     - "/home/ubuntu/airflow-scheduler.service.j2"
+    #     - "/home/ubuntu/airflow-webserver.service.j2"
+    #     - "/home/ubuntu/airflow-worker.service.j2"
+
+    - name: Airflow Scheduler Service
+      become: True
+      become_user: root
+      template:
+        src: ./templates/airflow-scheduler.service.j2
+        dest: /etc/systemd/system/airflow-scheduler.service
+        owner: root
+        group: '{{ airflow_user_group }}'
+        mode: 0664
+
+    - name: Airflow Worker Service
+      become: True
+      become_user: root
+      template:
+        src: ./templates/airflow-worker.service.j2
+        dest: /etc/systemd/system/airflow-worker.service
+        owner: root
+        group: '{{ airflow_user_group }}'
+        mode: 0664
+
+    - name: Airflow Webserver Service
+      become: True
+      become_user: root
+      template:
+        src: ./templates/airflow-webserver.service.j2
+        dest: /etc/systemd/system/airflow-webserver.service
+        owner: root
+        group: '{{ airflow_user_group }}'
+        mode: 0664
+
+    - name: Force systemd to reread configs
+      systemd: daemon_reload=yes name=reload-daemon
+
+    - name: Start Airflow Scheduler
+      become: True
+      become_user: root
+      systemd: state=started name=airflow-scheduler enabled=True
+
+
+    - name: Start Airflow Worker
+      become: True
+      become_user: root
+      systemd: state=started name=airflow-worker enabled=True
+
+    - name: Start Airflow Webserver
+      become: True
+      become_user: root
+      systemd: state=started name=airflow-webserver enabled=True
+
+    - name: Execute Python script to create Airflow user
+      script: create_airflow_webserver_user.py '{{ airflow_web_user_id }}' '{{ airflow_web_user_password }}' '{{ airflow_web_user_email }}'
 
     # - name: download airflow-scheduler.service.j2
     #   get_url:
